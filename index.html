@@ -1,1 +1,554 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>FlowStack — Live AI Support Agent</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+
+<style>
+  :root {
+    --bg: #0F1419;
+    --surface: #161D27;
+    --surface-2: #1B2430;
+    --border: #2A3441;
+    --text: #EDEFF2;
+    --text-muted: #7C8694;
+    --accent: #E8A33D;
+    --accent-dim: #4A3C24;
+    --online: #4ADE80;
+    --error: #E2545A;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    min-height: 100vh;
+  }
+
+  .page {
+    max-width: 680px;
+    margin: 0 auto;
+    padding: 64px 24px 48px;
+  }
+
+  .eyebrow {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 20px;
+  }
+
+  .status-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--online);
+    box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.6);
+    animation: pulse 2s infinite;
+    flex-shrink: 0;
+  }
+
+  @keyframes pulse {
+    0%   { box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.55); }
+    70%  { box-shadow: 0 0 0 7px rgba(74, 222, 128, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(74, 222, 128, 0); }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .status-dot, .msg, .dot-flash { animation: none !important; }
+  }
+
+  h1 {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 600;
+    font-size: 32px;
+    line-height: 1.15;
+    margin: 0 0 12px;
+    letter-spacing: -0.01em;
+  }
+
+  .subtitle {
+    color: var(--text-muted);
+    font-size: 15px;
+    line-height: 1.6;
+    margin: 0 0 36px;
+    max-width: 52ch;
+  }
+
+  .chat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .chat-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface-2);
+    flex-shrink: 0;
+  }
+
+  .chat-card-header .label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+
+  /* ---- Message log ---- */
+
+  #messages {
+    height: 480px;
+    overflow-y: auto;
+    padding: 8px 22px 4px;
+  }
+
+  #messages::-webkit-scrollbar { width: 8px; }
+  #messages::-webkit-scrollbar-track { background: transparent; }
+  #messages::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+  .msg {
+    padding: 16px 0;
+    border-bottom: 1px solid var(--border);
+    animation: msgIn 0.25s ease-out;
+  }
+  .msg:last-child { border-bottom: none; }
+
+  @keyframes msgIn {
+    from { opacity: 0; transform: translateY(4px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .msg-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10.5px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .msg-user .msg-sender { color: var(--text-muted); }
+  .msg-bot .msg-sender { color: var(--accent); }
+  .msg-time { color: var(--text-muted); font-weight: 400; }
+
+  .msg-bot-dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--accent);
+    flex-shrink: 0;
+  }
+
+  .msg-bot {
+    padding-left: 14px;
+    border-left: 2px solid var(--accent-dim);
+    margin-left: -1px;
+  }
+
+  .msg-content {
+    font-size: 14.5px;
+    line-height: 1.65;
+    color: var(--text);
+  }
+
+  .msg-content p {
+    margin: 0 0 10px;
+  }
+  .msg-content p:last-child {
+    margin-bottom: 0;
+  }
+
+  .msg-content ul {
+    margin: 6px 0 12px;
+    padding: 0;
+    list-style: none;
+  }
+  .msg-content li {
+    position: relative;
+    padding-left: 16px;
+    margin-bottom: 6px;
+  }
+  .msg-content li::before {
+    content: "\2192";
+    position: absolute;
+    left: 0;
+    color: var(--accent);
+  }
+
+  .msg-content strong {
+    color: var(--accent);
+    font-weight: 600;
+  }
+
+  .msg-error .msg-content {
+    color: var(--error);
+  }
+  .msg-error .msg-sender { color: var(--error); }
+  .msg-error.msg {
+    border-left: 2px solid var(--error);
+    padding-left: 14px;
+    margin-left: -1px;
+  }
+
+  /* ---- Typing indicator ---- */
+
+  .typing-dots {
+    display: inline-flex;
+    gap: 4px;
+    align-items: center;
+    height: 18px;
+  }
+  .typing-dots span {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--text-muted);
+    animation: dotFlash 1.2s infinite ease-in-out;
+  }
+  .typing-dots span:nth-child(2) { animation-delay: 0.15s; }
+  .typing-dots span:nth-child(3) { animation-delay: 0.3s; }
+
+  @keyframes dotFlash {
+    0%, 60%, 100% { opacity: 0.25; transform: translateY(0); }
+    30% { opacity: 1; transform: translateY(-2px); }
+  }
+
+  /* ---- Input row ---- */
+
+  .input-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 18px;
+    border-top: 1px solid var(--border);
+    background: var(--surface-2);
+    flex-shrink: 0;
+  }
+
+  #chat-input {
+    flex: 1;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 11px 14px;
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  #chat-input:focus {
+    border-color: var(--accent);
+  }
+  #chat-input::placeholder {
+    color: var(--text-muted);
+  }
+  #chat-input:disabled {
+    opacity: 0.5;
+  }
+
+  #send-btn {
+    flex-shrink: 0;
+    width: 38px;
+    height: 38px;
+    border-radius: 8px;
+    border: none;
+    background: var(--accent);
+    color: #14110A;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: opacity 0.15s, transform 0.1s;
+  }
+  #send-btn:hover:not(:disabled) { opacity: 0.88; }
+  #send-btn:active:not(:disabled) { transform: scale(0.94); }
+  #send-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  a:focus-visible,
+  button:focus-visible,
+  input:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  footer {
+    margin-top: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+
+  footer a {
+    color: var(--text-muted);
+    text-decoration: none;
+    border-bottom: 1px solid var(--border);
+  }
+
+  footer a:hover {
+    color: var(--accent);
+    border-color: var(--accent);
+  }
+
+  @media (max-width: 480px) {
+    .page { padding: 40px 16px 32px; }
+    h1 { font-size: 26px; }
+    #messages { height: 420px; padding: 8px 16px 4px; }
+    .input-row { padding: 12px 14px; }
+  }
+</style>
+</head>
+<body>
+
+  <div class="page">
+    <div class="eyebrow">
+      <span class="status-dot" aria-hidden="true"></span>
+      <span>Live demo - FlowStack support agent</span>
+    </div>
+
+    <h1>Talk to FlowStack's AI support agent</h1>
+    <p class="subtitle">
+      This is a real, working chatbot built by Vetra Systems - not a mockup. It answers from FlowStack's
+      actual pricing, policies, and FAQs, and hands off to a human the moment it doesn't know something.
+      Ask it anything a customer might.
+    </p>
+
+    <div class="chat-card">
+      <div class="chat-card-header">
+        <span class="label">flowstack_support_agent.live</span>
+        <span class="label" style="color: var(--online);">&#9679; online</span>
+      </div>
+
+      <div id="messages"></div>
+
+      <div class="input-row">
+        <input id="chat-input" type="text" placeholder="Ask about plans, pricing, onboarding..." autocomplete="off" />
+        <button id="send-btn" aria-label="Send message">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M14.5 1.5L1.5 7L7 9L9 14.5L14.5 1.5Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <footer>
+      <span>Built by Vetra Systems</span>
+      <a href="https://vetrasystems.co" target="_blank" rel="noopener">vetrasystems.co</a>
+    </footer>
+  </div>
+
+  <script>
+    var WEBHOOK_URL = 'https://humzaautomates.app.n8n.cloud/webhook/9b8f98ed-7b2f-4503-a772-082898c0e67b/chat';
+
+    var sessionId = (window.crypto && window.crypto.randomUUID)
+      ? window.crypto.randomUUID()
+      : 'sess-' + Date.now() + '-' + Math.random().toString(16).slice(2);
+
+    var messagesEl = document.getElementById('messages');
+    var inputEl = document.getElementById('chat-input');
+    var sendBtn = document.getElementById('send-btn');
+
+    function escapeHtml(str) {
+      var div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
+    }
+
+    function formatTime() {
+      var d = new Date();
+      var h = d.getHours();
+      var m = d.getMinutes();
+      var ampm = h >= 12 ? 'PM' : 'AM';
+      h = h % 12;
+      if (h === 0) h = 12;
+      var mStr = m < 10 ? '0' + m : '' + m;
+      return h + ':' + mStr + ' ' + ampm;
+    }
+
+    function renderMarkdown(raw) {
+      var escaped = escapeHtml(raw);
+      escaped = escaped.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+
+      var blocks = escaped.split(/\n\s*\n/);
+      var html = '';
+
+      for (var i = 0; i < blocks.length; i++) {
+        var block = blocks[i].trim();
+        if (!block) continue;
+
+        var lines = block.split(/\n/);
+        var isList = true;
+        for (var j = 0; j < lines.length; j++) {
+          if (lines[j].trim().indexOf('- ') !== 0) { isList = false; break; }
+        }
+
+        if (isList) {
+          html += '<ul>';
+          for (var k = 0; k < lines.length; k++) {
+            html += '<li>' + lines[k].trim().slice(2) + '</li>';
+          }
+          html += '</ul>';
+        } else {
+          html += '<p>' + block.replace(/\n/g, '<br>') + '</p>';
+        }
+      }
+
+      return html || '<p>' + escaped + '</p>';
+    }
+
+    function scrollToBottom() {
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
+    function addMessage(sender, contentHtml, isError) {
+      var wrap = document.createElement('div');
+      wrap.className = 'msg msg-' + sender + (isError ? ' msg-error' : '');
+
+      var meta = document.createElement('div');
+      meta.className = 'msg-meta';
+
+      if (sender === 'bot') {
+        var dot = document.createElement('span');
+        dot.className = 'msg-bot-dot';
+        meta.appendChild(dot);
+      }
+
+      var senderLabel = document.createElement('span');
+      senderLabel.className = 'msg-sender';
+      senderLabel.textContent = sender === 'user' ? 'You' : (isError ? 'System' : 'FlowStack Agent');
+      meta.appendChild(senderLabel);
+
+      var time = document.createElement('span');
+      time.className = 'msg-time';
+      time.textContent = formatTime();
+      meta.appendChild(time);
+
+      var content = document.createElement('div');
+      content.className = 'msg-content';
+      content.innerHTML = contentHtml;
+
+      wrap.appendChild(meta);
+      wrap.appendChild(content);
+      messagesEl.appendChild(wrap);
+      scrollToBottom();
+      return wrap;
+    }
+
+    function showTyping() {
+      var wrap = document.createElement('div');
+      wrap.className = 'msg msg-bot';
+      wrap.id = 'typing-indicator';
+
+      var meta = document.createElement('div');
+      meta.className = 'msg-meta';
+      var dot = document.createElement('span');
+      dot.className = 'msg-bot-dot';
+      var senderLabel = document.createElement('span');
+      senderLabel.className = 'msg-sender';
+      senderLabel.textContent = 'FlowStack Agent';
+      meta.appendChild(dot);
+      meta.appendChild(senderLabel);
+
+      var content = document.createElement('div');
+      content.className = 'msg-content';
+      content.innerHTML = '<span class="typing-dots"><span></span><span></span><span></span></span>';
+
+      wrap.appendChild(meta);
+      wrap.appendChild(content);
+      messagesEl.appendChild(wrap);
+      scrollToBottom();
+    }
+
+    function removeTyping() {
+      var el = document.getElementById('typing-indicator');
+      if (el) el.remove();
+    }
+
+    function setInputDisabled(disabled) {
+      inputEl.disabled = disabled;
+      sendBtn.disabled = disabled;
+    }
+
+    function sendMessage() {
+      var text = inputEl.value.trim();
+      if (!text) return;
+
+      addMessage('user', escapeHtml(text));
+      inputEl.value = '';
+      setInputDisabled(true);
+      showTyping();
+
+      fetch(WEBHOOK_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'sendMessage',
+          sessionId: sessionId,
+          chatInput: text
+        })
+      })
+        .then(function (res) {
+          if (!res.ok) throw new Error('HTTP ' + res.status);
+          return res.json();
+        })
+        .then(function (data) {
+          removeTyping();
+          var reply = data.output || data.text || data.message || data.reply;
+          if (!reply) reply = "I got a response back but couldn't read it properly - try asking again.";
+          addMessage('bot', renderMarkdown(reply));
+        })
+        .catch(function (err) {
+          removeTyping();
+          addMessage('bot', 'Couldn\'t reach the agent just now. Try sending that again in a moment.', true);
+          console.error('Chat request failed:', err);
+        })
+        .finally(function () {
+          setInputDisabled(false);
+          inputEl.focus();
+        });
+    }
+
+    sendBtn.addEventListener('click', sendMessage);
+    inputEl.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+      }
+    });
+
+    addMessage('bot', "Hi, I'm FlowStack's support assistant.");
+    addMessage('bot', "Ask me about plans, pricing, onboarding, or anything else - I'll be straight with you if I don't know something.");
+  </script>
+
+</body>
+</html>
 
